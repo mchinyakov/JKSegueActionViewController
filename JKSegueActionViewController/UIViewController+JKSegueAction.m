@@ -41,28 +41,35 @@ static char *JKSegueActionMapKey = "JKSegueActionMapKey";
     return map;
 }
 
-- (JKSegueActionBlock) blockForSegueWithIdentifier:(NSString *)identifier {
+- (NSDictionary *) blocksForSegueWithIdentifier:(NSString *)identifier {
     NSMutableDictionary *map = [self map];
     return map[identifier];
 }
 
-- (void)restoreBlock:(JKSegueActionBlock)savedBlock forSegueWithIdentifier:(NSString *)identifier {
+- (void)restoreBlocks:(NSDictionary *)savedBlocksDictionary forSegueWithIdentifier:(NSString *)identifier {
     NSMutableDictionary *map = [self map];
     
-    if (savedBlock) {
-        map[identifier] = savedBlock;
+    if (savedBlocksDictionary) {
+        map[identifier] = savedBlocksDictionary;
     } else {
         [map removeObjectForKey:identifier];
     }
 }
 
-- (BOOL)hasBlockForSegue:(UIStoryboardSegue *)segue {
-    return ([self blockForSegueWithIdentifier:segue.identifier] != nil);
+- (BOOL)hasBlocksForSegue:(UIStoryboardSegue *)segue {
+    return ([self blocksForSegueWithIdentifier:segue.identifier] != nil);
 }
 
 - (void)performBlockForSegue:(UIStoryboardSegue *)segue withSender:(id)sender {
-    JKSegueActionBlock block = [self blockForSegueWithIdentifier:segue.identifier];
-    block(segue, sender);
+    NSDictionary *blocks = [self blocksForSegueWithIdentifier:segue.identifier];
+    
+    NSArray * keys = [[blocks allKeys] sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
+    for (NSString * key in keys) {
+        JKSegueActionBlock block = blocks[key];
+        if (! block)
+            continue;
+        block(segue, sender);
+    }
 }
 
 -(void)invokeSelectorForSegue:(UIStoryboardSegue *)segue withSender:(id)sender {
@@ -79,7 +86,7 @@ static char *JKSegueActionMapKey = "JKSegueActionMapKey";
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    if ([self hasBlockForSegue:segue]) {
+    if ([self hasBlocksForSegue:segue]) {
         [self performBlockForSegue:segue withSender:sender];
     } else {
         [self invokeSelectorForSegue:segue withSender:sender];
@@ -87,18 +94,38 @@ static char *JKSegueActionMapKey = "JKSegueActionMapKey";
 }
 #pragma clang diagnostic pop
 
-- (void) setActionForSegueWithIdentifier:(NSString *)identifier toBlock:(JKSegueActionBlock) block {
+- (void) clearActionsForSegueWithIdentifier:(NSString *)identifier{
     NSMutableDictionary *map = [self map];
-    map[identifier] = block;
+    [map removeObjectForKey:identifier];
+}
+
+- (void) addActionForSegueWithIdentifier:(NSString *)identifier toBlock:(JKSegueActionBlock) block andBlockName:(NSString *) blockName {
+    
+    NSMutableDictionary *map = [self map];
+    if (map[identifier] == nil) {
+        map[identifier] = [NSMutableDictionary new];
+    }
+    if (blockName == nil) {
+        blockName = [@((NSUInteger)[[map[identifier] allKeys] count] + 1) stringValue];
+    }
+    
+    NSMutableDictionary * blocks = (NSMutableDictionary *)map[identifier];
+    [blocks setObject:block forKey:blockName ];
+}
+
+- (void) setActionForSegueWithIdentifier:(NSString *)identifier toBlock:(JKSegueActionBlock) block {
+    [self clearActionsForSegueWithIdentifier:identifier];
+    [self addActionForSegueWithIdentifier:identifier toBlock:block andBlockName:nil];
 }
 
 - (void) performSegueWithIdentifier:(NSString *)identifier sender:(id)sender withBlock:(JKSegueActionBlock) block
 {
-    JKSegueActionBlock savedBlock = [self blockForSegueWithIdentifier:identifier];
+    NSDictionary *savedBlocks = [self blocksForSegueWithIdentifier:identifier];
     
     // This isn't threadsafe but then again UIKit should only be used from the main thread so this is OK?
+    [self clearActionsForSegueWithIdentifier:identifier];
     [self setActionForSegueWithIdentifier:identifier toBlock:block];
     [self performSegueWithIdentifier:identifier sender:sender];
-    [self restoreBlock:savedBlock forSegueWithIdentifier:identifier];
+    [self restoreBlocks:savedBlocks forSegueWithIdentifier:identifier];
 }
 @end
