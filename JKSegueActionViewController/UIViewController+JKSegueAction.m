@@ -110,7 +110,7 @@ static char *JKSegueActionMapKey = "JKSegueActionMapKey";
     }
     
     NSMutableDictionary * blocks = (NSMutableDictionary *)map[identifier];
-    [blocks setObject:block forKey:blockName ];
+    [blocks setObject:[block copy] forKey:blockName ];
 }
 
 - (void) setActionForSegueWithIdentifier:(NSString *)identifier toBlock:(JKSegueActionBlock) block {
