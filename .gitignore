@@ -23,3 +23,5 @@ build/
 # Cocoapods
 Pods
 Podfile.lock
+.idea
+atlassian-ide-plugin.xml
